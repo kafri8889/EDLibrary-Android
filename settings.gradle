@@ -1,0 +1,3 @@
+include ':EDLibrary'
+include ':app'
+rootProject.name = "EDLibrary"
