@@ -3,20 +3,32 @@ package com.eunidev.edlibrary
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.Network
-import android.net.NetworkCapabilities
-import android.net.NetworkRequest
+import android.content.pm.PackageManager
+import android.content.res.TypedArray
+import android.net.*
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.util.AttributeSet
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
 import android.widget.*
 import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.createDataStore
 import com.google.android.material.snackbar.Snackbar
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import java.lang.RuntimeException
 import java.util.*
 
 /**
@@ -705,7 +717,7 @@ import java.util.*
 
  */
 
-open class EDLibrary {
+open class EDLibrary() {
 
     companion object {
         const val NETWORK_NO_CONNECTION = "no_koneksyen"
@@ -721,6 +733,16 @@ open class EDLibrary {
         private const val SNACKBAR_TYPE_INFO = 32
 
         private var onClickedOne = false
+
+        @RequiresApi(Build.VERSION_CODES.M)
+        fun requestPermission(activity: Activity, permission: String, requestCode: Int) {
+
+            if (ContextCompat.checkSelfPermission(activity, permission) == PackageManager.PERMISSION_DENIED) {
+                ActivityCompat.requestPermissions(activity, arrayOf(permission), requestCode)
+            } else {
+                Log.i("EDPermission", "Permission Granted")
+            }
+        }
 
         fun implementDoubleClickToExit(context: Activity) {
             if (onClickedOne) {
@@ -1361,5 +1383,50 @@ open class EDLibrary {
             snackbar.show()
         }
     }
+
+	class EDDataStore : EDLibrary() {
+
+        private lateinit var dataStore: DataStore<Preferences>
+
+        companion object {
+            private var INSTANCE: EDDataStore? = null
+
+            fun getInstance(context: Context): EDDataStore? {
+                if (INSTANCE == null) {
+                    synchronized(EDDataStore::class) {
+                        INSTANCE = EDDataStore()
+                        INSTANCE!!.dataStore = context.createDataStore(name = "Public_Value")
+                    }
+                }
+
+                return INSTANCE
+            }
+
+        }
+
+		suspend fun setString(key: String, value: String) {
+		    dataStore.edit {
+		        it[stringPreferencesKey(key)] = value
+            }
+		}
+
+        suspend fun setInt(key: String, value: Int) {
+            dataStore.edit {
+                it[intPreferencesKey(key)] = value
+            }
+        }
+
+        fun getString(key: String): Flow<String> {
+            return dataStore.data.map {
+                it[stringPreferencesKey(key)] ?: ""
+            }
+        }
+
+        fun getInt(key: String): Flow<Int> {
+            return dataStore.data.map {
+                it[intPreferencesKey(key)] ?: 0
+            }
+        }
+	}
 
 }

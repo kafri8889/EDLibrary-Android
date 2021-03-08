@@ -1,10 +1,8 @@
 package com.eunidev.edlibrary
 
 import android.content.Context
-import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Handler
-import android.os.HandlerThread
 import android.os.Looper
 import android.util.AttributeSet
 import android.util.Log
@@ -13,10 +11,15 @@ import android.widget.LinearLayout
 import android.widget.VideoView
 
 class EDGifView : LinearLayout {
+
+    private val defaultDuration = 30000
+    private var customDuration = 0
+    private var startWithDuration = false
     private var isUsingUrl = false
     private var isVideoViewInitialize = false
 
     private lateinit var videoView: VideoView
+    private lateinit var onCompletionListener: OnCompletionListener
 
     private var url: String?
     private lateinit var uri: Uri
@@ -60,8 +63,8 @@ class EDGifView : LinearLayout {
         isUriAdded = true
     }
 
-    fun setOnCompletionListener(listener: MediaPlayer.OnCompletionListener) {
-        videoView.setOnCompletionListener(listener)
+    fun setOnCompletionListener(listener: OnCompletionListener) {
+        this.onCompletionListener = listener
     }
 
     fun isPlaying() = videoView.isPlaying
@@ -78,14 +81,34 @@ class EDGifView : LinearLayout {
         return videoView.currentPosition
     }
 
+    fun muteAudio() {
+        videoView.setOnPreparedListener {
+            it.setVolume(0f,0f)
+        }
+    }
+
     private fun restart() {
         videoView.setVideoURI(uri)
-        start()
+        if (startWithDuration) {
+            start(customDuration)
+        } else {
+            start()
+        }
     }
 
     fun start() {
+        startWithDuration = false
         val handler = Handler(Looper.getMainLooper())
-        handler.postDelayed(run(handler), 20)
+        handler.postDelayed(run(handler, null), 20)
+
+        videoView.start()
+    }
+
+    fun start(duration: Int) {
+        customDuration = duration
+        startWithDuration = true
+        val handler = Handler(Looper.getMainLooper())
+        handler.postDelayed(run(handler, duration), 20)
 
         videoView.start()
     }
@@ -94,13 +117,29 @@ class EDGifView : LinearLayout {
     fun pause() = videoView.pause()
     fun stop() = videoView.stopPlayback()
 
-    private fun run(handler: Handler): Runnable {
+    private fun run(handler: Handler, duration: Int?): Runnable {
+
         return Runnable {
-            if (getCurrentPosition() >= 30000) {
-                restart()
+            if (duration == null) {
+                if (getCurrentPosition() >= defaultDuration) {
+                    onCompletionListener.onComplete(defaultDuration)
+                    restart()
+                } else {
+                    handler.postDelayed(run(handler, duration), 20)
+                }
             } else {
-                handler.postDelayed(run(handler), 20)
+                if (getCurrentPosition() >= duration) {
+                    onCompletionListener.onComplete(duration)
+                    restart()
+                } else {
+                    handler.postDelayed(run(handler, duration), 20)
+                }
             }
         }
+    }
+
+    interface OnCompletionListener {
+
+        fun onComplete(durationSet: Int)
     }
 }
